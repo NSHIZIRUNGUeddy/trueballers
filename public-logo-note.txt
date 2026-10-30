@@ -1,0 +1,1 @@
+Copy public-logo.png into public/logo.png before running. The original uploaded logo is included in the project root as public-logo.png.
