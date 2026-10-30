@@ -6,7 +6,7 @@ A responsive Next.js starter for a Rwanda-first basketball news platform with a 
 - Orange/black/white responsive news homepage and True Ballers logo
 - Rwanda basketball and international categories
 - Kinyarwanda / English / French language selector foundation
-- Eight demo stories with sample images (replace demo copy with verified reporting)
+- No demo stories: the homepage shows only articles published from the admin panel
 - Article detail pages, search, most-read list, share links, comments form and newsletter signup
 - Supabase admin sign-in, article create/edit/delete, image upload, draft/publish status
 - Basic page-view event collection and admin activity table
@@ -40,7 +40,7 @@ The Supabase anon/publishable key is intended to be used in the browser with RLS
 5. In Vercel Domains, connect your custom domain and follow its DNS instructions.
 
 ## Before production
-- The eight stories are design/test examples, not verified current news. Replace them with fact-checked articles and properly licensed photos.
+- The homepage has no sample stories. Publish fact-checked articles with properly licensed photos from the admin panel.
 - Live scores are a placeholder. Select a data provider whose terms allow display, then implement its API/embedding and refresh policy. Do not scrape protected score sites.
 - Add rate limiting / CAPTCHA to comments and newsletter signups, and configure email confirmation/double opt-in for the newsletter.
 - Add a cookie/privacy notice and a privacy policy. Analytics currently counts page-view events, not unique people; users can generate multiple events. Do not treat this as a unique-visitor metric.
