@@ -158,6 +158,8 @@ export default function Admin(){
   async function upload(e:any){
     const file=e.target.files?.[0];
     if(!file||!supabase)return;
+    if(/heic|heif/i.test(file.type+file.name)){setMsg('HEIC/HEIF photos are not supported by browsers. Please upload a JPG, PNG or WebP image.');e.target.value='';return}
+    if(!['image/jpeg','image/png','image/webp'].includes(file.type)){setMsg('Please upload a JPG, PNG or WebP image.');e.target.value='';return}
     setUploading(true);
     const path=`${Date.now()}-${file.name.replace(/[^a-zA-Z0-9._-]/g,'-')}`;
     const {error}=await supabase.storage.from('article-images').upload(path,file,{upsert:false});
@@ -235,7 +237,7 @@ export default function Admin(){
           <div className="field"><label>Article content</label><textarea rows={8} value={form.content||''} onChange={e=>setForm({...form,content:e.target.value})} required/></div>
           <div className="field"><label>Category</label><select value={form.category} onChange={e=>setForm({...form,category:e.target.value})}>{categories.map(x=><option key={x}>{x}</option>)}</select></div>
           <div className="field"><label>Language</label><select value={form.language} onChange={e=>setForm({...form,language:e.target.value})}><option value="rw">Kinyarwanda</option><option value="en">English</option><option value="fr">French</option></select></div>
-          <div className="field"><label>Image URL or uploaded image</label><input value={form.image_url||''} onChange={e=>setForm({...form,image_url:e.target.value})} placeholder="https://..."/><input type="file" accept="image/*" onChange={upload}/>{uploading&&<small>Uploading image…</small>}</div>
+          <div className="field"><label>Image URL or uploaded image</label><input value={form.image_url||''} onChange={e=>setForm({...form,image_url:e.target.value})} placeholder="https://..."/><input type="file" accept="image/jpeg,image/png,image/webp" onChange={upload}/>{uploading&&<small>Uploading image…</small>}</div>
           <div className="field"><label>Status</label><select value={form.status||'draft'} onChange={e=>setForm({...form,status:e.target.value})}><option value="draft">Save as draft</option><option value="published">Publish now</option></select></div>
           <div className="pillrow">
             <button className="button" disabled={busy}>{editing?'Save changes':'Save article'}</button>
