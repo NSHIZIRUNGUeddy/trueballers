@@ -1,0 +1,117 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex">
+<title>TrueBallers Admin</title><style>
+*{box-sizing:border-box}body{margin:0;font:16px/1.5 system-ui,sans-serif;background:#f3f3f3;color:#111}
+header{background:#111;color:#fff;padding:12px 18px;display:flex;justify-content:space-between;align-items:center}header b{color:#ff6a00;font-size:20px}
+.w{max-width:900px;margin:16px auto;padding:0 12px}.tabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px}
+button,.tab{background:#ff6a00;color:#fff;border:0;border-radius:6px;padding:9px 14px;font:inherit;font-weight:700;cursor:pointer}.tab{background:#111}.tab.on{background:#ff6a00}
+.x{background:#c62828}.g{background:#666}.v{background:#1565c0}button:disabled{opacity:.6;cursor:wait}
+input,textarea,select{width:100%;padding:9px;border:1px solid #ccc;border-radius:6px;font:inherit;margin:3px 0 10px}
+.box{background:#fff;border-radius:8px;padding:16px;margin-bottom:12px}.err{border-left:5px solid #c62828;color:#c62828}
+.row{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid #eee;flex-wrap:wrap}.row span{flex:1;min-width:180px}
+.st{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px;margin-bottom:12px}.st div{background:#fff;padding:14px;border-radius:8px;text-align:center}.st b{font-size:26px;color:#ff6a00;display:block}
+.rng{display:flex;gap:6px;margin:6px 0 12px}.rng button{background:#111;padding:6px 12px}.rng button.on{background:#ff6a00}
+svg.ch{width:100%;height:auto;display:block}svg.ch text{font:11px system-ui;fill:#666}
+.sub{display:flex;justify-content:space-between;gap:8px;padding:7px 0;border-bottom:1px solid #eee;font-size:15px}.sub small{color:#777;white-space:nowrap}
+.top{display:flex;justify-content:space-between;gap:8px;padding:6px 0;border-bottom:1px solid #eee}
+</style></head><body><header><span style="display:flex;align-items:center;gap:8px"><img src="logo.png" height="40" alt=""><b>TrueBallers</b> Admin</span><button class="g" id="out" onclick="sb.auth.signOut().then(init)" hidden>Log out</button></header>
+<div class="w" id="app"></div>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script><script src="https://cdn.jsdelivr.net/npm/heic2any@0.0.4/dist/heic2any.min.js"></script><script src="config.js"></script>
+<script>
+const sb=supabase.createClient(CFG.URL,CFG.KEY),$=s=>document.querySelector(s),app=$('#app');
+const CATS=['BAL','Rwanda Basketball League','Patriots','REG','APR',"Women's League",'NBA','FIBA','EuroLeague','Videos','Opinion'];
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const T=[['art','📰 Articles'],['new','➕ New article'],['sc','🏀 Scores'],['cm','💬 Comments'],['an','📈 Analytics'],['su','✉️ Subscribers']];
+const fail=(w,e)=>{console.error(w,e);return `<div class="box err"><b>${w} failed:</b> ${esc(e.message||e)}<br><small>If this says "permission denied" or "row-level security", log out and back in, then check the SQL policies.</small></div>`};
+let cur=[],RANGE=30,SUBS=[],tok=0;
+
+async function init(){const{data:{session}}=await sb.auth.getSession();$('#out').hidden=!session;
+ if(!session){app.innerHTML=`<div class="box"><h2>Log in</h2><form onsubmit="login(event)">Email<input name="e" type="email" required>Password<input name="p" type="password" required><button>Log in</button></form></div>`;return}
+ tab('art')}
+async function login(e){e.preventDefault();const r=await sb.auth.signInWithPassword({email:e.target.e.value,password:e.target.p.value});if(r.error)alert('Login failed: '+r.error.message);else init()}
+
+async function fetchAll(table,cols,build){ // pages past Supabase's 1000-row limit
+ let out=[],from=0;for(;;){let q=sb.from(table).select(cols);if(build)q=build(q);const{data,error}=await q.range(from,from+999);if(error)throw error;out=out.concat(data);if(data.length<1000)break;from+=1000}return out}
+
+async function tab(t,arg){const my=++tok;
+ app.innerHTML=`<div class="tabs">${T.map(x=>`<button class="tab ${x[0]==t||(t=='edit'&&x[0]=='new')?'on':''}" onclick="tab('${x[0]}')">${x[1]}</button>`).join('')}</div><div id="c">Loading…</div>`;
+ const c=$('#c');
+ try{
+ if(t=='art'){const{data,error}=await sb.from('articles').select('id,title,category,lang,views,published').order('created_at',{ascending:false});
+  if(my!=tok)return;if(error){c.innerHTML=fail('Loading articles',error);return}
+  c.innerHTML=(data||[]).map(a=>`<div class="box row"><span><b>${esc(a.title)}</b><br><small>${esc(a.category)} · ${esc(a.lang)} · 👁 ${a.views||0} ${a.published?'':'· DRAFT'}</small></span><button class="v" onclick="view('${a.id}')">View</button><button onclick="tab('edit','${a.id}')">Edit</button><button class="x" onclick="del('${a.id}')">Delete</button></div>`).join('')||'No articles yet.'}
+ else if(t=='new'||t=='edit'){let a={category:CATS[0],lang:'rw',published:true};
+  if(arg){const r=await sb.from('articles').select('*').eq('id',arg).single();if(r.error){c.innerHTML=fail('Loading article',r.error);return}a=r.data}
+  if(my!=tok)return;
+  cur=a.images&&a.images.length?[...a.images]:(a.image_url?[a.image_url]:[]);
+  c.innerHTML=`<form class="box" onsubmit="save(event)"><input type="hidden" name="aid" value="${a.id||''}">
+  Title<input name="ttl" required value="${esc(a.title)}">Short summary<input name="sum" value="${esc(a.summary)}">Article text<textarea name="body" rows="10">${esc(a.body)}</textarea>
+  Category<select name="cat">${CATS.map(x=>`<option ${x==a.category?'selected':''}>${esc(x)}</option>`).join('')}</select>
+  Language<select name="lng">${[['rw','Kinyarwanda'],['en','English'],['fr','Français']].map(x=>`<option value="${x[0]}" ${x[0]==a.lang?'selected':''}>${x[1]}</option>`).join('')}</select>
+  Pictures (choose several at once; the first is the cover)<div id="th" style="display:flex;gap:10px;flex-wrap:wrap;margin:8px 0"></div><input type="file" name="img" accept="image/*" multiple>YouTube link (for videos, optional)<input name="vid" value="${esc(a.video_url)}">
+  Tags (separate with commas)<input name="tags" value="${esc(a.tags)}"><label><input type="checkbox" name="pub" ${a.published?'checked':''} style="width:auto"> Published (untick to save as draft)</label><br><br><button>Save</button></form>`;thumbs()}
+ else if(t=='sc'){const{data,error}=await sb.from('scores').select('*').order('created_at',{ascending:false}).limit(15);
+  if(my!=tok)return;if(error){c.innerHTML=fail('Loading scores',error);return}
+  c.innerHTML=`<form class="box" onsubmit="addScore(event)">League<input name="l" required>Home team<input name="h" required>Score<input name="hs" type="number" required>Away team<input name="a" required>Score<input name="as" type="number" required>Status (e.g. FT, Live)<input name="s"><button>Add score</button></form>`+(data||[]).map(s=>`<div class="box row"><span>${esc(s.league)}: ${esc(s.home)} ${s.hs}–${s.as} ${esc(s.away)}</span><button class="x" onclick="rm('scores','${s.id}','sc')">Delete</button></div>`).join('')}
+ else if(t=='cm'){const{data,error}=await sb.from('comments').select('*').order('created_at',{ascending:false}).limit(50);
+  if(my!=tok)return;if(error){c.innerHTML=fail('Loading comments',error);return}
+  c.innerHTML=(data||[]).map(m=>`<div class="box row"><span><b>${esc(m.name)}</b>: ${esc(m.body)}</span><button class="x" onclick="rm('comments','${m.id}','cm')">Delete</button></div>`).join('')||'No comments.'}
+ else if(t=='su'){SUBS=await fetchAll('subscribers','id,email,created_at',q=>q.order('created_at',{ascending:false}));if(my!=tok)return;c.innerHTML=subsBox()}
+ else if(t=='an'){await analytics(c,my)}
+ }catch(e){if(my==tok)c.innerHTML=fail('Loading',e)}}
+
+/* ---------- Analytics ---------- */
+const pad=n=>String(n).padStart(2,'0'),keyOf=d=>d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate());
+async function dailyViews(days){ // returns {'YYYY-MM-DD':count}
+ const m={};const r=await sb.rpc('daily_views',{days});
+ if(!r.error){(r.data||[]).forEach(x=>m[String(x.day).slice(0,10)]=Number(x.views));return m}
+ const since=new Date();since.setDate(since.getDate()-days);since.setHours(0,0,0,0); // fallback if update2.sql not yet run
+ const rows=await fetchAll('page_views','created_at',q=>q.gte('created_at',since.toISOString()).order('created_at'));
+ rows.forEach(v=>{const k=keyOf(new Date(v.created_at));m[k]=(m[k]||0)+1});return m}
+function chart(keys,m){const W=800,H=240,L=38,R=10,Tp=16,B=28,mx=Math.max(1,...keys.map(k=>m[k]||0)),n=keys.length;
+ const X=i=>L+(n<2?0:i*(W-L-R)/(n-1)),Y=v=>Tp+(H-Tp-B)*(1-v/mx);
+ const pts=keys.map((k,i)=>[X(i),Y(m[k]||0)]),line=pts.map((p,i)=>(i?'L':'M')+p[0].toFixed(1)+' '+p[1].toFixed(1)).join(' ');
+ const area=line+` L${X(n-1).toFixed(1)} ${Y(0)} L${X(0).toFixed(1)} ${Y(0)} Z`,step=Math.ceil(n/7);
+ const grid=[0,.25,.5,.75,1].map(f=>{const v=Math.round(mx*f),y=Y(v);return `<line x1="${L}" x2="${W-R}" y1="${y}" y2="${y}" stroke="#eee"/><text x="${L-6}" y="${y+4}" text-anchor="end">${v}</text>`}).join('');
+ const xl=keys.map((k,i)=>i%step==0||i==n-1?`<text x="${X(i)}" y="${H-8}" text-anchor="middle">${k.slice(5)}</text>`:'').join('');
+ const dots=keys.map((k,i)=>`<circle cx="${pts[i][0]}" cy="${pts[i][1]}" r="${n>45?2:3.5}" fill="#ff6a00"><title>${k}: ${m[k]||0} visits</title></circle>`).join('');
+ return `<svg class="ch" viewBox="0 0 ${W} ${H}">${grid}<path d="${area}" fill="#ff6a00" opacity=".15"/><path d="${line}" fill="none" stroke="#ff6a00" stroke-width="2.5"/>${dots}${xl}</svg>`}
+async function analytics(c,my){
+ const need=Math.max(RANGE,7),m=await dailyViews(need+1);
+ const subs=await fetchAll('subscribers','id,email,created_at',q=>q.order('created_at',{ascending:false}));SUBS=subs;
+ const top=await sb.from('articles').select('title,views').order('views',{ascending:false}).limit(5);
+ if(my!=tok)return;
+ const keys=[];for(let i=RANGE-1;i>=0;i--){const d=new Date();d.setDate(d.getDate()-i);keys.push(keyOf(d))}
+ const sum=a=>a.reduce((s,k)=>s+(m[k]||0),0),total=sum(keys),today=m[keys[keys.length-1]]||0,wk=sum(keys.slice(-7));
+ c.innerHTML=`<div class="st"><div><b>${today}</b>Visits today</div><div><b>${wk}</b>Last 7 days</div><div><b>${total}</b>Last ${RANGE} days</div><div><b>${subs.length}</b>Subscribers</div></div>
+ <div class="box"><h3 style="margin-top:0">Website visits over time</h3><div class="rng">${[7,30,90].map(d=>`<button class="${d==RANGE?'on':''}" onclick="RANGE=${d};tab('an')">${d} days</button>`).join('')}</div>${chart(keys,m)}
+ <small style="color:#777">Each page load counts as one visit (not unique people).</small></div>
+ <div class="box"><h3 style="margin-top:0">Most read articles</h3>${top.error?esc(top.error.message):(top.data||[]).map(a=>`<div class="top"><span>${esc(a.title)}</span><b>👁 ${a.views||0}</b></div>`).join('')||'No articles yet.'}</div>`+subsBox()}
+function subsBox(){return `<div class="box"><h3 style="margin-top:0">✉️ Subscribers (${SUBS.length})</h3>
+ <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px"><button onclick="copyEmails()">Copy all emails</button><button class="g" onclick="csv()">Download CSV</button></div>
+ ${SUBS.map(s=>`<div class="sub"><span>${esc(s.email)}</span><small>${new Date(s.created_at).toLocaleDateString()}</small></div>`).join('')||'No subscribers yet.'}</div>`}
+function copyEmails(){const t=SUBS.map(s=>s.email).join(', ');navigator.clipboard.writeText(t).then(()=>alert('Copied '+SUBS.length+' emails'),()=>prompt('Copy:',t))}
+function csv(){const b=new Blob(['email,subscribed_at\n'+SUBS.map(s=>`"${String(s.email).replace(/"/g,'""')}",${s.created_at}`).join('\n')],{type:'text/csv'}),a=document.createElement('a');a.href=URL.createObjectURL(b);a.download='subscribers.csv';a.click()}
+
+/* ---------- Articles ---------- */
+function view(id){window.open(new URL('index.html',location.href).href.replace(/index\.html.*$/,'')+'#/a/'+id,'_blank')}
+async function del(id){if(!confirm('Delete this article permanently?'))return;
+ const r=await sb.from('articles').delete().eq('id',id).select();
+ if(r.error)return alert('Delete failed: '+r.error.message);
+ if(!r.data.length)return alert('Nothing was deleted — you are probably not logged in as an admin. Log out and in again.');tab('art')}
+async function rm(t,id,b){if(!confirm('Delete?'))return;const r=await sb.from(t).delete().eq('id',id).select();
+ if(r.error)return alert('Delete failed: '+r.error.message);if(!r.data.length)return alert('Nothing was deleted — permission problem.');tab(b)}
+async function addScore(e){e.preventDefault();const f=e.target;const r=await sb.from('scores').insert({league:f.l.value,home:f.h.value,away:f.a.value,hs:+f.hs.value,as:+f.as.value,status:f.s.value});if(r.error)alert(r.error.message);else tab('sc')}
+async function prep(f){let b=f;if(/heic|heif/i.test(f.type+f.name)){const r=await heic2any({blob:f,toType:'image/jpeg',quality:.85});b=Array.isArray(r)?r[0]:r}
+ const bm=await createImageBitmap(b),k=Math.min(1,1600/Math.max(bm.width,bm.height)),c=document.createElement('canvas');c.width=Math.round(bm.width*k);c.height=Math.round(bm.height*k);
+ c.getContext('2d').drawImage(bm,0,0,c.width,c.height);return await new Promise(r=>c.toBlob(r,'image/jpeg',.82))}
+function thumbs(){$('#th').innerHTML=cur.map((u,i)=>`<div style="position:relative"><img src="${esc(u)}" height="70" style="border-radius:8px"><b onclick="cur.splice(${i},1);thumbs()" style="position:absolute;top:-7px;right:-7px;background:#c62828;color:#fff;border-radius:50%;width:22px;height:22px;text-align:center;cursor:pointer">×</b></div>`).join('')}
+async function save(e){e.preventDefault();const E=e.target.elements,btn=e.target.querySelector('button'),reset=()=>{btn.disabled=false;btn.textContent='Save'};
+ btn.disabled=true;btn.textContent='Saving…';const imgs=[...cur];
+ for(const f0 of E.img.files){let f;try{f=await prep(f0)}catch(x){reset();return alert('Could not read picture: '+f0.name)}
+  const p=Date.now()+Math.random().toString(36).slice(2,6)+'.jpg';const u=await sb.storage.from('images').upload(p,f,{contentType:'image/jpeg'});
+  if(u.error){reset();return alert('Picture upload failed: '+u.error.message)}imgs.push(sb.storage.from('images').getPublicUrl(p).data.publicUrl)}
+ const row={title:E.ttl.value,summary:E.sum.value,body:E.body.value,category:E.cat.value,lang:E.lng.value,tags:E.tags.value,video_url:E.vid.value,published:E.pub.checked,images:imgs,image_url:imgs[0]||null};
+ const r=E.aid.value?await sb.from('articles').update(row).eq('id',E.aid.value).select():await sb.from('articles').insert(row).select();
+ if(r.error){reset();alert(r.error.message)}else if(!r.data.length){reset();alert('Nothing was saved — permission problem. Log out and in again.')}else{alert('Saved ✔');tab('art')}}
+init();
+</script></body></html>
